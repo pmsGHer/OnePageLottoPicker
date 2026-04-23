@@ -214,7 +214,7 @@ export default function LottoPickerClient({
             }`}
           >
             <p className="text-sm font-bold">저장한 번호</p>
-            <p className="mt-1 text-xs opacity-75">
+            <p className="mt-1 text-xs opacity-75" suppressHydrationWarning>
               {savedTickets.length}/{MAX_SAVED_BATCHES}개 저장됨
             </p>
           </button>
