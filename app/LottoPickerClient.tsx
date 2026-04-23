@@ -245,15 +245,14 @@ export default function LottoPickerClient({
               로또 번호 추천기
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-300 sm:text-base">
-              각 게임마다 메인 번호 6개와 2등 확인용 보너스 번호 1개를 함께
-              생성합니다. 마음에 드는 게임만 골라 최대 10건까지 저장할 수
-              있습니다.
+              기본 번호 6개와 보너스 번호 1개를 랜덤으로 생성합니다.
+              마음에 드는 번호를 최대 10건까지 저장할 수 있습니다.
             </p>
           </div>
 
           <div className="grid gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
             <label htmlFor="count" className="text-sm font-medium text-slate-200">
-              생성 게임 수
+              추천 건수
             </label>
             <div className="relative">
               <select
@@ -264,7 +263,7 @@ export default function LottoPickerClient({
               >
                 {[1, 2, 3, 4, 5].map((value) => (
                   <option key={value} value={value}>
-                    {value}게임
+                    {value}건
                   </option>
                 ))}
               </select>
@@ -289,7 +288,7 @@ export default function LottoPickerClient({
               onClick={generateTickets}
               className="rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-200"
             >
-              재선택
+              다시 선택
             </button>
           </div>
         </div>
@@ -298,7 +297,7 @@ export default function LottoPickerClient({
           <TabButton
             active={activeTab === "generated"}
             title="추천 번호"
-            description="랜덤 번호를 1개 ~ 5개까지 추천"
+            description="랜덤 로또 번호를 1건 ~ 5건까지 추천"
             onClick={() => setActiveTab("generated")}
           />
           <TabButton
@@ -319,7 +318,7 @@ export default function LottoPickerClient({
           <section className="mt-6 space-y-5">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
               <p className="text-sm font-semibold text-white">
-                현재 추천 조합 {tickets.length}게임
+                현재 추천 조합 {tickets.length}건
               </p>
               <p className="mt-1 text-xs text-slate-300 sm:text-sm">
                 번호 색상은 구간별로 다르게 표시되고, 마지막 공은 보너스
@@ -411,11 +410,15 @@ export default function LottoPickerClient({
               <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
                 <p>
                   1. 추천 번호 제공: 메인 번호 6개와 보너스 번호 1개를
-                  게임별로 생성합니다.
+                  건별로 생성합니다.
                 </p>
                 <p>
-                  2. 마음에 드는 번호 저장 기능: 원하는 게임만 최대 10건까지
+                  2. 마음에 드는 번호 저장 기능: 원하는 번호만 최대 10건까지
                   저장할 수 있습니다.
+                </p>
+                <p>
+                  3. 번호 저장 방식: 별도 DB 없이 현재 브라우저의 localStorage에
+                  저장되며, 같은 브라우저에서는 다시 열어도 유지됩니다.
                 </p>
               </div>
             </article>
@@ -425,7 +428,7 @@ export default function LottoPickerClient({
               <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
                 <p>
                   <span className="font-semibold text-cyan-200">
-                    v20260423-01-001
+                    v20260423-01-002
                   </span>
                   : 기능 설명 탭 추가, 생성 게임 기본값 1게임 변경, 재선택
                   문구 적용
@@ -445,7 +448,7 @@ export default function LottoPickerClient({
             </article>
 
             <p className="px-2 text-right text-sm italic text-slate-400">
-              From pms
+              From pmsÜbermensch
             </p>
           </section>
         )}
