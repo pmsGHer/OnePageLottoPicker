@@ -9,10 +9,10 @@ export type LottoTicket = {
   bonus: number;
 };
 
-export type SavedTicketBatch = {
+export type SavedLottoTicket = {
   id: string;
   createdAt: string;
-  tickets: LottoTicket[];
+  ticket: LottoTicket;
 };
 
 export function createLottoTicket(): LottoTicket {

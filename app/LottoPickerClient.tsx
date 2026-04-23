@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   createLottoTicket,
   INITIAL_TICKET_COUNT,
   MAX_SAVED_BATCHES,
   type LottoTicket,
-  type SavedTicketBatch,
+  type SavedLottoTicket,
 } from "./lotto";
 
 type LottoPickerClientProps = {
@@ -15,7 +15,7 @@ type LottoPickerClientProps = {
 
 type TabKey = "generated" | "saved";
 
-const SAVED_BATCHES_KEY = "lotto-saved-batches";
+const SAVED_TICKETS_KEY = "lotto-saved-tickets";
 
 const NUMBER_COLOR_CLASSES = [
   "bg-amber-300 text-amber-950 ring-amber-100/70",
@@ -37,6 +37,10 @@ function getNumberColorClass(number: number) {
   return NUMBER_COLOR_CLASSES[4];
 }
 
+function getTicketSignature(ticket: LottoTicket) {
+  return `${ticket.numbers.join("-")}+${ticket.bonus}`;
+}
+
 function formatSavedAt(createdAt: string) {
   return new Intl.DateTimeFormat("ko-KR", {
     dateStyle: "medium",
@@ -47,17 +51,22 @@ function formatSavedAt(createdAt: string) {
 function TicketCard({
   ticket,
   index,
+  action,
+  meta,
 }: {
   ticket: LottoTicket;
   index: number;
+  action?: React.ReactNode;
+  meta?: React.ReactNode;
 }) {
   return (
     <article className="rounded-3xl border border-white/10 bg-slate-950/55 p-4 shadow-lg shadow-slate-950/25">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-slate-100">게임 {index + 1}</p>
-        <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-medium text-amber-200">
-          보너스 포함
-        </span>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-100">게임 {index + 1}</p>
+          {meta ? <div className="mt-1 text-xs text-slate-300">{meta}</div> : null}
+        </div>
+        {action}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 sm:gap-3">
@@ -84,20 +93,20 @@ export default function LottoPickerClient({
   const [activeTab, setActiveTab] = useState<TabKey>("generated");
   const [tickets, setTickets] = useState<LottoTicket[]>(initialTickets);
   const [count, setCount] = useState(INITIAL_TICKET_COUNT);
-  const [savedBatches, setSavedBatches] = useState<SavedTicketBatch[]>(() => {
+  const [savedTickets, setSavedTickets] = useState<SavedLottoTicket[]>(() => {
     if (typeof window === "undefined") {
       return [];
     }
 
-    const rawSavedBatches = window.localStorage.getItem(SAVED_BATCHES_KEY);
-    if (!rawSavedBatches) {
+    const rawSavedTickets = window.localStorage.getItem(SAVED_TICKETS_KEY);
+    if (!rawSavedTickets) {
       return [];
     }
 
     try {
-      return JSON.parse(rawSavedBatches) as SavedTicketBatch[];
+      return JSON.parse(rawSavedTickets) as SavedLottoTicket[];
     } catch {
-      window.localStorage.removeItem(SAVED_BATCHES_KEY);
+      window.localStorage.removeItem(SAVED_TICKETS_KEY);
       return [];
     }
   });
@@ -107,48 +116,39 @@ export default function LottoPickerClient({
       return;
     }
 
-    window.localStorage.setItem(SAVED_BATCHES_KEY, JSON.stringify(savedBatches));
-  }, [savedBatches]);
-
-  const currentTicketSignature = useMemo(
-    () =>
-      tickets
-        .map((ticket) => `${ticket.numbers.join("-")}+${ticket.bonus}`)
-        .join("|"),
-    [tickets],
-  );
-
-  const isCurrentBatchSaved = savedBatches.some(
-    (batch) =>
-      batch.tickets
-        .map((ticket) => `${ticket.numbers.join("-")}+${ticket.bonus}`)
-        .join("|") === currentTicketSignature,
-  );
+    window.localStorage.setItem(SAVED_TICKETS_KEY, JSON.stringify(savedTickets));
+  }, [savedTickets]);
 
   const generateTickets = () => {
     setTickets(createTicketBatch(count));
   };
 
-  const saveCurrentBatch = () => {
-    if (isCurrentBatchSaved) {
+  const isTicketSaved = (ticket: LottoTicket) =>
+    savedTickets.some((saved) => getTicketSignature(saved.ticket) === getTicketSignature(ticket));
+
+  const saveTicket = (ticket: LottoTicket) => {
+    if (isTicketSaved(ticket)) {
       setActiveTab("saved");
       return;
     }
 
-    setSavedBatches((previous) => {
-      const nextBatch: SavedTicketBatch = {
-        id: `${Date.now()}`,
+    setSavedTickets((previous) => {
+      const nextTicket: SavedLottoTicket = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         createdAt: new Date().toISOString(),
-        tickets,
+        ticket,
       };
 
-      return [nextBatch, ...previous].slice(0, MAX_SAVED_BATCHES);
+      return [nextTicket, ...previous].slice(0, MAX_SAVED_BATCHES);
     });
-    setActiveTab("saved");
   };
 
-  const removeSavedBatch = (id: string) => {
-    setSavedBatches((previous) => previous.filter((batch) => batch.id !== id));
+  const removeSavedTicket = (id: string) => {
+    setSavedTickets((previous) => previous.filter((saved) => saved.id !== id));
+  };
+
+  const clearSavedTickets = () => {
+    setSavedTickets([]);
   };
 
   return (
@@ -163,9 +163,8 @@ export default function LottoPickerClient({
               로또 번호 추천기
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-300 sm:text-base">
-              각 게임마다 메인 번호 6개와 2등 확인용 보너스 번호 1개를 함께
-              생성합니다. 마음에 드는 조합은 최대 10건까지 저장해서 탭에서 다시
-              볼 수 있습니다.
+              각 게임마다 메인 번호 6개와 2등 확인용 보너스 번호 1개를 함께 생성합니다.
+              마음에 드는 게임만 골라 최대 10건까지 저장할 수 있습니다.
             </p>
           </div>
 
@@ -204,7 +203,7 @@ export default function LottoPickerClient({
             }`}
           >
             <p className="text-sm font-bold">추천 번호</p>
-            <p className="mt-1 text-xs opacity-75">현재 생성된 조합과 저장 버튼</p>
+            <p className="mt-1 text-xs opacity-75">현재 생성된 게임별 저장 버튼</p>
           </button>
           <button
             onClick={() => setActiveTab("saved")}
@@ -216,88 +215,96 @@ export default function LottoPickerClient({
           >
             <p className="text-sm font-bold">저장한 번호</p>
             <p className="mt-1 text-xs opacity-75">
-              {savedBatches.length}/{MAX_SAVED_BATCHES}개 저장됨
+              {savedTickets.length}/{MAX_SAVED_BATCHES}개 저장됨
             </p>
           </button>
         </div>
 
         {activeTab === "generated" ? (
           <section className="mt-6 space-y-5">
-            <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-white">
-                  현재 추천 조합 {tickets.length}게임
-                </p>
-                <p className="mt-1 text-xs text-slate-300 sm:text-sm">
-                  번호 색상은 구간별로 다르게 표시되고, 마지막 공은 보너스 번호입니다.
-                </p>
-              </div>
-              <button
-                onClick={saveCurrentBatch}
-                disabled={savedBatches.length >= MAX_SAVED_BATCHES && !isCurrentBatchSaved}
-                className="rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-bold text-slate-950 transition enabled:hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
-              >
-                {isCurrentBatchSaved
-                  ? "이미 저장됨"
-                  : savedBatches.length >= MAX_SAVED_BATCHES
-                    ? "저장 한도 도달"
-                    : "현재 번호 저장"}
-              </button>
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <p className="text-sm font-semibold text-white">
+                현재 추천 조합 {tickets.length}게임
+              </p>
+              <p className="mt-1 text-xs text-slate-300 sm:text-sm">
+                번호 색상은 구간별로 다르게 표시되고, 마지막 공은 보너스 번호입니다.
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {tickets.map((ticket, index) => (
-                <TicketCard key={`${ticket.numbers.join("-")}-${ticket.bonus}-${index}`} ticket={ticket} index={index} />
-              ))}
+              {tickets.map((ticket, index) => {
+                const saved = isTicketSaved(ticket);
+                const saveDisabled = savedTickets.length >= MAX_SAVED_BATCHES && !saved;
+
+                return (
+                  <TicketCard
+                    key={`${ticket.numbers.join("-")}-${ticket.bonus}-${index}`}
+                    ticket={ticket}
+                    index={index}
+                    action={
+                      <button
+                        onClick={() => saveTicket(ticket)}
+                        disabled={saveDisabled}
+                        className="rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 transition enabled:hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
+                      >
+                        {saved
+                          ? "저장됨"
+                          : saveDisabled
+                            ? "한도 도달"
+                            : "저장"}
+                      </button>
+                    }
+                  />
+                );
+              })}
             </div>
           </section>
         ) : (
           <section className="mt-6">
-            {savedBatches.length === 0 ? (
+            {savedTickets.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-white/15 bg-white/5 px-5 py-12 text-center">
                 <p className="text-lg font-semibold text-white">저장된 번호가 없습니다.</p>
                 <p className="mt-2 text-sm text-slate-300">
-                  추천 번호 탭에서 마음에 드는 조합을 저장해 보세요.
+                  추천 번호 탭에서 마음에 드는 게임만 골라 저장해 보세요.
                 </p>
               </div>
             ) : (
               <div className="space-y-4">
-                {savedBatches.map((batch, batchIndex) => (
-                  <article
-                    key={batch.id}
-                    className="rounded-[1.75rem] border border-white/10 bg-white/5 p-4 sm:p-5"
+                <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      저장된 번호 {savedTickets.length}개
+                    </p>
+                    <p className="mt-1 text-xs text-slate-300 sm:text-sm">
+                      각 게임은 개별 삭제할 수 있고, 필요하면 전체 삭제도 가능합니다.
+                    </p>
+                  </div>
+                  <button
+                    onClick={clearSavedTickets}
+                    className="rounded-2xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/20"
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-cyan-200">
-                          저장 #{savedBatches.length - batchIndex}
-                        </p>
-                        <h2 className="mt-1 text-lg font-bold text-white">
-                          {formatSavedAt(batch.createdAt)}
-                        </h2>
-                        <p className="mt-1 text-xs text-slate-300 sm:text-sm">
-                          {batch.tickets.length}게임 저장됨
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => removeSavedBatch(batch.id)}
-                        className="rounded-2xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/20"
-                      >
-                        저장 삭제
-                      </button>
-                    </div>
+                    전체 삭제
+                  </button>
+                </div>
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {batch.tickets.map((ticket, index) => (
-                        <TicketCard
-                          key={`${batch.id}-${ticket.numbers.join("-")}-${ticket.bonus}-${index}`}
-                          ticket={ticket}
-                          index={index}
-                        />
-                      ))}
-                    </div>
-                  </article>
-                ))}
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {savedTickets.map((savedTicket, index) => (
+                    <TicketCard
+                      key={savedTicket.id}
+                      ticket={savedTicket.ticket}
+                      index={index}
+                      meta={<>저장일 {formatSavedAt(savedTicket.createdAt)}</>}
+                      action={
+                        <button
+                          onClick={() => removeSavedTicket(savedTicket.id)}
+                          className="rounded-2xl border border-rose-300/25 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/20"
+                        >
+                          삭제
+                        </button>
+                      }
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </section>
