@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   createLottoTicket,
   INITIAL_TICKET_COUNT,
@@ -16,6 +16,7 @@ type LottoPickerClientProps = {
 type TabKey = "generated" | "saved";
 
 const SAVED_TICKETS_KEY = "lotto-saved-tickets";
+const SAVED_TICKETS_EVENT = "saved-tickets-change";
 
 const NUMBER_COLOR_CLASSES = [
   "bg-amber-300 text-amber-950 ring-amber-100/70",
@@ -39,6 +40,64 @@ function getNumberColorClass(number: number) {
 
 function getTicketSignature(ticket: LottoTicket) {
   return `${ticket.numbers.join("-")}+${ticket.bonus}`;
+}
+
+function readSavedTicketsSnapshot(): SavedLottoTicket[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const rawSavedTickets = window.localStorage.getItem(SAVED_TICKETS_KEY);
+  if (!rawSavedTickets) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(rawSavedTickets) as SavedLottoTicket[];
+  } catch {
+    window.localStorage.removeItem(SAVED_TICKETS_KEY);
+    return [];
+  }
+}
+
+function subscribeToSavedTickets(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const handleStorageChange = (event: StorageEvent) => {
+    if (event.key === SAVED_TICKETS_KEY) {
+      onStoreChange();
+    }
+  };
+
+  window.addEventListener("storage", handleStorageChange);
+  window.addEventListener(SAVED_TICKETS_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", handleStorageChange);
+    window.removeEventListener(SAVED_TICKETS_EVENT, onStoreChange);
+  };
+}
+
+function writeSavedTicketsSnapshot(nextSavedTickets: SavedLottoTicket[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    SAVED_TICKETS_KEY,
+    JSON.stringify(nextSavedTickets),
+  );
+  window.dispatchEvent(new Event(SAVED_TICKETS_EVENT));
+}
+
+function createSavedTicketEntry(ticket: LottoTicket): SavedLottoTicket {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+    ticket,
+  };
 }
 
 function formatSavedAt(createdAt: string) {
@@ -93,31 +152,11 @@ export default function LottoPickerClient({
   const [activeTab, setActiveTab] = useState<TabKey>("generated");
   const [tickets, setTickets] = useState<LottoTicket[]>(initialTickets);
   const [count, setCount] = useState(INITIAL_TICKET_COUNT);
-  const [savedTickets, setSavedTickets] = useState<SavedLottoTicket[]>(() => {
-    if (typeof window === "undefined") {
-      return [];
-    }
-
-    const rawSavedTickets = window.localStorage.getItem(SAVED_TICKETS_KEY);
-    if (!rawSavedTickets) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(rawSavedTickets) as SavedLottoTicket[];
-    } catch {
-      window.localStorage.removeItem(SAVED_TICKETS_KEY);
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    window.localStorage.setItem(SAVED_TICKETS_KEY, JSON.stringify(savedTickets));
-  }, [savedTickets]);
+  const savedTickets = useSyncExternalStore(
+    subscribeToSavedTickets,
+    readSavedTicketsSnapshot,
+    () => [],
+  );
 
   const generateTickets = () => {
     setTickets(createTicketBatch(count));
@@ -132,23 +171,16 @@ export default function LottoPickerClient({
       return;
     }
 
-    setSavedTickets((previous) => {
-      const nextTicket: SavedLottoTicket = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        createdAt: new Date().toISOString(),
-        ticket,
-      };
-
-      return [nextTicket, ...previous].slice(0, MAX_SAVED_BATCHES);
-    });
+    const nextTicket = createSavedTicketEntry(ticket);
+    writeSavedTicketsSnapshot([nextTicket, ...savedTickets].slice(0, MAX_SAVED_BATCHES));
   };
 
   const removeSavedTicket = (id: string) => {
-    setSavedTickets((previous) => previous.filter((saved) => saved.id !== id));
+    writeSavedTicketsSnapshot(savedTickets.filter((saved) => saved.id !== id));
   };
 
   const clearSavedTickets = () => {
-    setSavedTickets([]);
+    writeSavedTicketsSnapshot([]);
   };
 
   return (
@@ -214,7 +246,7 @@ export default function LottoPickerClient({
             }`}
           >
             <p className="text-sm font-bold">저장한 번호</p>
-            <p className="mt-1 text-xs opacity-75" suppressHydrationWarning>
+            <p className="mt-1 text-xs opacity-75">
               {savedTickets.length}/{MAX_SAVED_BATCHES}개 저장됨
             </p>
           </button>
