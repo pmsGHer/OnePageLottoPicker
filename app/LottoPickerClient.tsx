@@ -143,17 +143,19 @@ function TicketCard({
         {action}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2 sm:gap-3">
+      <div className="mt-4 flex flex-nowrap items-center gap-1.5 sm:gap-3">
         {ticket.numbers.map((number) => (
           <span
             key={number}
-            className={`inline-flex h-11 w-11 items-center justify-center rounded-full text-sm font-black ring-2 ring-inset ${getNumberColorClass(number)} sm:h-12 sm:w-12 sm:text-base`}
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-black ring-2 ring-inset ${getNumberColorClass(number)} sm:h-12 sm:w-12 sm:text-base`}
           >
             {number}
           </span>
         ))}
-        <span className="text-base font-black text-slate-500">+</span>
-        <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-400 to-orange-300 text-sm font-black text-slate-950 ring-2 ring-inset ring-white/70 sm:h-12 sm:w-12 sm:text-base">
+        <span className="shrink-0 px-0.5 text-sm font-black text-slate-500 sm:text-base">
+          +
+        </span>
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-400 to-orange-300 text-xs font-black text-slate-950 ring-2 ring-inset ring-white/70 sm:h-12 sm:w-12 sm:text-base">
           {ticket.bonus}
         </span>
       </div>
@@ -253,18 +255,36 @@ export default function LottoPickerClient({
             <label htmlFor="count" className="text-sm font-medium text-slate-200">
               생성 게임 수
             </label>
-            <select
-              id="count"
-              value={count}
-              onChange={(event) => setCount(Number(event.target.value))}
-              className="rounded-2xl border border-white/15 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-300"
-            >
-              {[1, 2, 3, 4, 5].map((value) => (
-                <option key={value} value={value}>
-                  {value}게임
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                id="count"
+                value={count}
+                onChange={(event) => setCount(Number(event.target.value))}
+                className="w-full appearance-none rounded-2xl border border-white/15 bg-slate-950/70 px-4 py-3 pr-12 text-left text-sm text-white outline-none transition focus:border-cyan-300"
+              >
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={value} value={value}>
+                    {value}게임
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-slate-300">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  className="h-4 w-4"
+                >
+                  <path
+                    d="M5 7.5L10 12.5L15 7.5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            </div>
             <button
               onClick={generateTickets}
               className="rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-200"
@@ -278,7 +298,7 @@ export default function LottoPickerClient({
           <TabButton
             active={activeTab === "generated"}
             title="추천 번호"
-            description="현재 생성된 게임별 저장 버튼"
+            description="랜덤 번호를 1개 ~ 5개까지 추천"
             onClick={() => setActiveTab("generated")}
           />
           <TabButton
@@ -322,7 +342,7 @@ export default function LottoPickerClient({
                       <button
                         onClick={() => saveTicket(ticket)}
                         disabled={saveDisabled}
-                        className="rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 transition enabled:hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
+                        className="rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-200 transition enabled:hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-800/50 disabled:text-slate-400"
                       >
                         {saved ? "저장됨" : saveDisabled ? "한도 도달" : "저장"}
                       </button>
@@ -387,7 +407,7 @@ export default function LottoPickerClient({
         ) : (
           <section className="mt-6 space-y-4">
             <article className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
-              <h2 className="text-lg font-bold text-white">주요 기능 설명</h2>
+              <h2 className="text-lg font-bold text-white">주요 기능</h2>
               <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
                 <p>
                   1. 추천 번호 제공: 메인 번호 6개와 보너스 번호 1개를
@@ -412,6 +432,21 @@ export default function LottoPickerClient({
                 </p>
               </div>
             </article>
+
+            <article className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+              <h2 className="text-lg font-bold text-white">개발 스택</h2>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
+                <p>Next.js 16.2.4</p>
+                <p>React 19.2.4</p>
+                <p>TypeScript 5</p>
+                <p>Tailwind CSS 4</p>
+                <p>브라우저 localStorage 기반 저장</p>
+              </div>
+            </article>
+
+            <p className="px-2 text-right text-sm italic text-slate-400">
+              From pms
+            </p>
           </section>
         )}
       </section>
