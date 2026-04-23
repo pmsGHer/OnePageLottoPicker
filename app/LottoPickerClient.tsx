@@ -13,10 +13,14 @@ type LottoPickerClientProps = {
   initialTickets: LottoTicket[];
 };
 
-type TabKey = "generated" | "saved";
+type TabKey = "generated" | "saved" | "info";
 
 const SAVED_TICKETS_KEY = "lotto-saved-tickets";
 const SAVED_TICKETS_EVENT = "saved-tickets-change";
+const EMPTY_SAVED_TICKETS: SavedLottoTicket[] = [];
+
+let cachedSavedTicketsRaw: string | null = null;
+let cachedSavedTicketsSnapshot: SavedLottoTicket[] = EMPTY_SAVED_TICKETS;
 
 const NUMBER_COLOR_CLASSES = [
   "bg-amber-300 text-amber-950 ring-amber-100/70",
@@ -44,19 +48,30 @@ function getTicketSignature(ticket: LottoTicket) {
 
 function readSavedTicketsSnapshot(): SavedLottoTicket[] {
   if (typeof window === "undefined") {
-    return [];
+    return EMPTY_SAVED_TICKETS;
   }
 
   const rawSavedTickets = window.localStorage.getItem(SAVED_TICKETS_KEY);
   if (!rawSavedTickets) {
-    return [];
+    cachedSavedTicketsRaw = null;
+    cachedSavedTicketsSnapshot = EMPTY_SAVED_TICKETS;
+    return EMPTY_SAVED_TICKETS;
+  }
+
+  if (rawSavedTickets === cachedSavedTicketsRaw) {
+    return cachedSavedTicketsSnapshot;
   }
 
   try {
-    return JSON.parse(rawSavedTickets) as SavedLottoTicket[];
+    const parsed = JSON.parse(rawSavedTickets) as SavedLottoTicket[];
+    cachedSavedTicketsRaw = rawSavedTickets;
+    cachedSavedTicketsSnapshot = parsed;
+    return parsed;
   } catch {
     window.localStorage.removeItem(SAVED_TICKETS_KEY);
-    return [];
+    cachedSavedTicketsRaw = null;
+    cachedSavedTicketsSnapshot = EMPTY_SAVED_TICKETS;
+    return EMPTY_SAVED_TICKETS;
   }
 }
 
@@ -85,10 +100,10 @@ function writeSavedTicketsSnapshot(nextSavedTickets: SavedLottoTicket[]) {
     return;
   }
 
-  window.localStorage.setItem(
-    SAVED_TICKETS_KEY,
-    JSON.stringify(nextSavedTickets),
-  );
+  const nextRawSavedTickets = JSON.stringify(nextSavedTickets);
+  cachedSavedTicketsRaw = nextRawSavedTickets;
+  cachedSavedTicketsSnapshot = nextSavedTickets;
+  window.localStorage.setItem(SAVED_TICKETS_KEY, nextRawSavedTickets);
   window.dispatchEvent(new Event(SAVED_TICKETS_EVENT));
 }
 
@@ -146,6 +161,32 @@ function TicketCard({
   );
 }
 
+function TabButton({
+  active,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-2xl px-4 py-3 text-left transition ${
+        active
+          ? "bg-white text-slate-950 shadow-lg"
+          : "border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+      }`}
+    >
+      <p className="text-sm font-bold">{title}</p>
+      <p className="mt-1 text-xs opacity-75">{description}</p>
+    </button>
+  );
+}
+
 export default function LottoPickerClient({
   initialTickets,
 }: LottoPickerClientProps) {
@@ -155,7 +196,7 @@ export default function LottoPickerClient({
   const savedTickets = useSyncExternalStore(
     subscribeToSavedTickets,
     readSavedTicketsSnapshot,
-    () => [],
+    () => EMPTY_SAVED_TICKETS,
   );
 
   const generateTickets = () => {
@@ -163,7 +204,10 @@ export default function LottoPickerClient({
   };
 
   const isTicketSaved = (ticket: LottoTicket) =>
-    savedTickets.some((saved) => getTicketSignature(saved.ticket) === getTicketSignature(ticket));
+    savedTickets.some(
+      (saved) =>
+        getTicketSignature(saved.ticket) === getTicketSignature(ticket),
+    );
 
   const saveTicket = (ticket: LottoTicket) => {
     if (isTicketSaved(ticket)) {
@@ -172,11 +216,15 @@ export default function LottoPickerClient({
     }
 
     const nextTicket = createSavedTicketEntry(ticket);
-    writeSavedTicketsSnapshot([nextTicket, ...savedTickets].slice(0, MAX_SAVED_BATCHES));
+    writeSavedTicketsSnapshot(
+      [nextTicket, ...savedTickets].slice(0, MAX_SAVED_BATCHES),
+    );
   };
 
   const removeSavedTicket = (id: string) => {
-    writeSavedTicketsSnapshot(savedTickets.filter((saved) => saved.id !== id));
+    writeSavedTicketsSnapshot(
+      savedTickets.filter((saved) => saved.id !== id),
+    );
   };
 
   const clearSavedTickets = () => {
@@ -195,8 +243,9 @@ export default function LottoPickerClient({
               로또 번호 추천기
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-300 sm:text-base">
-              각 게임마다 메인 번호 6개와 2등 확인용 보너스 번호 1개를 함께 생성합니다.
-              마음에 드는 게임만 골라 최대 10건까지 저장할 수 있습니다.
+              각 게임마다 메인 번호 6개와 2등 확인용 보너스 번호 1개를 함께
+              생성합니다. 마음에 드는 게임만 골라 최대 10건까지 저장할 수
+              있습니다.
             </p>
           </div>
 
@@ -220,36 +269,30 @@ export default function LottoPickerClient({
               onClick={generateTickets}
               className="rounded-2xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-200"
             >
-              번호 다시 뽑기
+              재선택
             </button>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <button
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <TabButton
+            active={activeTab === "generated"}
+            title="추천 번호"
+            description="현재 생성된 게임별 저장 버튼"
             onClick={() => setActiveTab("generated")}
-            className={`rounded-2xl px-4 py-3 text-left transition ${
-              activeTab === "generated"
-                ? "bg-white text-slate-950 shadow-lg"
-                : "border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
-            }`}
-          >
-            <p className="text-sm font-bold">추천 번호</p>
-            <p className="mt-1 text-xs opacity-75">현재 생성된 게임별 저장 버튼</p>
-          </button>
-          <button
+          />
+          <TabButton
+            active={activeTab === "saved"}
+            title="저장 번호"
+            description={`${savedTickets.length}/${MAX_SAVED_BATCHES}개 저장됨`}
             onClick={() => setActiveTab("saved")}
-            className={`rounded-2xl px-4 py-3 text-left transition ${
-              activeTab === "saved"
-                ? "bg-white text-slate-950 shadow-lg"
-                : "border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
-            }`}
-          >
-            <p className="text-sm font-bold">저장한 번호</p>
-            <p className="mt-1 text-xs opacity-75">
-              {savedTickets.length}/{MAX_SAVED_BATCHES}개 저장됨
-            </p>
-          </button>
+          />
+          <TabButton
+            active={activeTab === "info"}
+            title="기능 설명"
+            description="주요 기능과 버전 기록"
+            onClick={() => setActiveTab("info")}
+          />
         </div>
 
         {activeTab === "generated" ? (
@@ -259,14 +302,16 @@ export default function LottoPickerClient({
                 현재 추천 조합 {tickets.length}게임
               </p>
               <p className="mt-1 text-xs text-slate-300 sm:text-sm">
-                번호 색상은 구간별로 다르게 표시되고, 마지막 공은 보너스 번호입니다.
+                번호 색상은 구간별로 다르게 표시되고, 마지막 공은 보너스
+                번호입니다.
               </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {tickets.map((ticket, index) => {
                 const saved = isTicketSaved(ticket);
-                const saveDisabled = savedTickets.length >= MAX_SAVED_BATCHES && !saved;
+                const saveDisabled =
+                  savedTickets.length >= MAX_SAVED_BATCHES && !saved;
 
                 return (
                   <TicketCard
@@ -279,11 +324,7 @@ export default function LottoPickerClient({
                         disabled={saveDisabled}
                         className="rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 transition enabled:hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
                       >
-                        {saved
-                          ? "저장됨"
-                          : saveDisabled
-                            ? "한도 도달"
-                            : "저장"}
+                        {saved ? "저장됨" : saveDisabled ? "한도 도달" : "저장"}
                       </button>
                     }
                   />
@@ -291,11 +332,13 @@ export default function LottoPickerClient({
               })}
             </div>
           </section>
-        ) : (
+        ) : activeTab === "saved" ? (
           <section className="mt-6">
             {savedTickets.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-white/15 bg-white/5 px-5 py-12 text-center">
-                <p className="text-lg font-semibold text-white">저장된 번호가 없습니다.</p>
+                <p className="text-lg font-semibold text-white">
+                  저장된 번호가 없습니다.
+                </p>
                 <p className="mt-2 text-sm text-slate-300">
                   추천 번호 탭에서 마음에 드는 게임만 골라 저장해 보세요.
                 </p>
@@ -308,7 +351,8 @@ export default function LottoPickerClient({
                       저장된 번호 {savedTickets.length}개
                     </p>
                     <p className="mt-1 text-xs text-slate-300 sm:text-sm">
-                      각 게임은 개별 삭제할 수 있고, 필요하면 전체 삭제도 가능합니다.
+                      각 게임은 개별 삭제할 수 있고, 필요하면 전체 삭제도
+                      가능합니다.
                     </p>
                   </div>
                   <button
@@ -339,6 +383,35 @@ export default function LottoPickerClient({
                 </div>
               </div>
             )}
+          </section>
+        ) : (
+          <section className="mt-6 space-y-4">
+            <article className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+              <h2 className="text-lg font-bold text-white">주요 기능 설명</h2>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
+                <p>
+                  1. 추천 번호 제공: 메인 번호 6개와 보너스 번호 1개를
+                  게임별로 생성합니다.
+                </p>
+                <p>
+                  2. 마음에 드는 번호 저장 기능: 원하는 게임만 최대 10건까지
+                  저장할 수 있습니다.
+                </p>
+              </div>
+            </article>
+
+            <article className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+              <h2 className="text-lg font-bold text-white">버전 기록</h2>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
+                <p>
+                  <span className="font-semibold text-cyan-200">
+                    v20260423-01-001
+                  </span>
+                  : 기능 설명 탭 추가, 생성 게임 기본값 1게임 변경, 재선택
+                  문구 적용
+                </p>
+              </div>
+            </article>
           </section>
         )}
       </section>

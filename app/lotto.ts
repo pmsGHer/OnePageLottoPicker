@@ -1,7 +1,7 @@
 export const MIN_NUMBER = 1;
 export const MAX_NUMBER = 45;
 export const NUMBERS_PER_TICKET = 6;
-export const INITIAL_TICKET_COUNT = 3;
+export const INITIAL_TICKET_COUNT = 1;
 export const MAX_SAVED_BATCHES = 10;
 
 export type LottoTicket = {
