@@ -326,7 +326,7 @@ export default function LottoPickerClient({
               </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {tickets.map((ticket, index) => {
                 const saved = isTicketSaved(ticket);
                 const saveDisabled =
@@ -382,7 +382,7 @@ export default function LottoPickerClient({
                   </button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                   {savedTickets.map((savedTicket, index) => (
                     <TicketCard
                       key={savedTicket.id}
